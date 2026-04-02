@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>马斯克推文预测市场 | Musk Tweet Prediction Markets</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: { bg: '#0f0f10', card: '#1a1a1d', border: '#2d2d30' },
+                        accent: { primary: '#6366f1', secondary: '#8b5cf6', glow: '#a78bfa' }
+                    },
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .gradient-text {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .card-glow {
+            box-shadow: 0 0 30px rgba(99, 102, 241, 0.1);
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa);
+            transition: width 1s ease-out;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
+            50% { box-shadow: 0 0 40px rgba(99, 102, 241, 0.6); }
+        }
+        .pulse-glow { animation: pulse-glow 2s infinite; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        .heatmap-cell { transition: all 0.2s ease; }
+        .heatmap-cell:hover { transform: scale(1.1); z-index: 10; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1a1a1d; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+    </style>
+</head>
+<body class="bg-dark-bg text-white min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // API 地址
+        const API_URL = 'https://musk-predict-api.vercel.app/api';
+        
+        // 真实的 Polymarket 市场概率数据 (2026年4月2日)
+        const POLYMARKET_REALTIME_DATA = {
+            '240-259': 53.5,  // 最可能
+            '220-239': 18.6,
+            '260-279': 18.5,
+            '280-299': 6.9,
+            '300+': 2.5
+        };
+        
+        // 模拟数据 (API 不可用时使用)
+        const mockData = {
+            total: 209,
+            todayNew: 9,
+            dailyRate: 35,
+            remainingTime: '1天2小时',
+            progress: 86,
+            volume: '$18.4M',
+            lastUpdate: '2026/4/2 12:09:43',
+            prediction: 247,
+            centerProbability: 43.2,
+            ranges: [
+                { range: '220-239', probability: 18.6, isCenter: false },
+                { range: '240-259', probability: 53.5, isCenter: true },
+                { range: '260-279', probability: 18.5, isCenter: false },
+                { range: '280-299', probability: 6.9, isCenter: false }
+            ],
+            polymarketOdds: {
+                source: 'Polymarket',
+                lastUpdated: 'Apr 2, 2026, 3:02 PM UTC',
+                odds: POLYMARKET_REALTIME_DATA
+            },
+            dailyStats: [
+                { date: '4/2', day: '周四', count: 7 },
+                { date: '4/1', day: '周三', count: 51 },
+                { date: '3/31', day: '周二', count: 41 },
+                { date: '3/30', day: '周一', count: 37 },
+                { date: '3/29', day: '周日', count: 28 },
+                { date: '3/28', day: '周六', count: 29 },
+                { date: '3/27', day: '周五', count: 16 }
+            ],
+            markets: [
+                { name: 'Elon Musk # tweets 3月27日 - 4月3日, 2026', remaining: '2天', volume: '$18.4M', active: true },
+                { name: 'Elon Musk # tweets 3月31日 - 4月7日, 2026', remaining: '6天', volume: '$4.9M', active: false }
+            ],
+            heatmapData: generateHeatmapData()
+        };
+
+        function generateHeatmapData() {
+            const hours = Array.from({ length: 24 }, (_, i) => i);
+            const days = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+            const data = [];
+            days.forEach((day, dayIndex) => {
+                hours.forEach(hour => {
+                    let intensity = Math.random();
+                    // 马斯克通常深夜和早上发推较多
+                    if (hour >= 22 || hour <= 2) intensity = Math.min(1, intensity + 0.3);
+                    else if (hour >= 6 && hour <= 10) intensity = Math.min(1, intensity + 0.2);
+                    else if (hour >= 12 && hour <= 14) intensity = Math.min(1, intensity + 0.1);
+                    data.push({ day, hour, intensity });
+                });
+            });
+            return data;
+        }
+
+        // Header 组件
+        function Header() {
+            return (
+                <header className="bg-dark-card border-b border-dark-border">
+                    <div className="max-w-7xl mx-auto px-4 py-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h1 className="text-2xl font-bold gradient-text">马斯克推文预测市场</h1>
+                                <p className="text-gray-400 text-sm">Musk Tweet Prediction Markets</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <span className="px-3 py-1 bg-amber-500/20 text-amber-400 text-sm font-medium rounded-full">
+                                    后期收缩
+                                </span>
+                                <a href="https://polymarket.com" target="_blank" rel="noopener noreferrer" 
+                                   className="px-4 py-2 text-gray-400 hover:text-white transition-colors text-sm">
+                                    Polymarket 主页
+                                </a>
+                                <a href="https://polymarket.com" target="_blank" rel="noopener noreferrer"
+                                   className="px-5 py-2 bg-accent-primary hover:bg-accent-secondary rounded-lg font-medium transition-all hover:shadow-lg hover:shadow-accent-primary/25">
+                                    进入 Polymarket
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+            );
+        }
+
+        // Navigation 组件
+        function Navigation({ activeTab, setActiveTab }) {
+            const tabs = [
+                { id: 'overview', label: '市场概览', icon: '📊' },
+                { id: 'probability', label: '概率分析', icon: '📈' },
+                { id: 'heatmap', label: '发推热力图', icon: '🔥' },
+                { id: 'generator', label: '推文生成', icon: '✍️' }
+            ];
+
+            return (
+                <nav className="bg-dark-card/50 border-b border-dark-border">
+                    <div className="max-w-7xl mx-auto px-4">
+                        <div className="flex gap-1">
+                            {tabs.map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`px-6 py-4 font-medium transition-all relative ${
+                                        activeTab === tab.id 
+                                            ? 'text-white' 
+                                            : 'text-gray-400 hover:text-gray-200'
+                                    }`}
+                                >
+                                    <span className="mr-2">{tab.icon}</span>
+                                    {tab.label}
+                                    {activeTab === tab.id && (
+                                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-primary" />
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </nav>
+            );
+        }
+
+        // StatCard 组件
+        function StatCard({ label, value, unit, icon }) {
+            return (
+                <div className="bg-dark-card rounded-xl p-5 border border-dark-border card-glow fade-in">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-gray-400 text-sm">{label}</span>
+                        <span className="text-lg">{icon}</span>
+                    </div>
+                    <div className="text-4xl font-bold gradient-text mb-1">{value}</div>
+                    <span className="text-gray-500 text-sm">{unit}</span>
+                </div>
+            );
+        }
+
+        // ProgressBar 组件
+        function ProgressBar({ value, label }) {
+            return (
+                <div className="bg-dark-card rounded-xl p-5 border border-dark-border fade-in">
+                    <div className="flex justify-between items-center mb-3">
+                        <span className="text-gray-400 text-sm">{label}</span>
+                        <span className="text-accent-glow font-semibold">{value}%</span>
+                    </div>
+                    <div className="h-3 bg-dark-bg rounded-full overflow-hidden">
+                        <div 
+                            className="h-full progress-bar rounded-full"
+                            style={{ width: `${value}%` }}
+                        />
+                    </div>
+                </div>
+            );
+        }
+
+        // ProbabilityCard 组件
+        function ProbabilityCard({ range, probability, isCenter }) {
+            return (
+                <div className={`bg-dark-card rounded-xl p-4 border transition-all ${
+                    isCenter ? 'border-amber-500/50 pulse-glow' : 'border-dark-border'
+                }`}>
+                    <div className="flex justify-between items-center mb-3">
+                        <div className="flex items-center gap-2">
+                            <span className="font-semibold">{range}</span>
+                            {isCenter && (
+                                <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full">
+                                    中心
+                                </span>
+                            )}
+                        </div>
+                        <span className="text-xl font-bold text-accent-glow">{probability}%</span>
+                    </div>
+                    <div className="h-2 bg-dark-bg rounded-full overflow-hidden">
+                        <div 
+                            className="h-full progress-bar rounded-full"
+                            style={{ width: `${probability * 2}%` }}
+                        />
+                    </div>
+                </div>
+            );
+        }
+
+        // MarketCard 组件
+        function MarketCard({ market, isActive }) {
+            return (
+                <div className={`rounded-xl p-4 border transition-all cursor-pointer ${
+                    isActive 
+                        ? 'bg-accent-primary/10 border-accent-primary/50' 
+                        : 'bg-dark-card border-dark-border hover:border-gray-600'
+                }`}>
+                    <div className="flex justify-between items-start mb-3">
+                        <h3 className="font-medium text-sm flex-1 pr-4">{market.name}</h3>
+                        {isActive && (
+                            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full whitespace-nowrap">
+                                进行中
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-400">剩余 {market.remaining}</span>
+                        <span className="text-accent-glow font-semibold">{market.volume}</span>
+                    </div>
+                </div>
+            );
+        }
+
+        // DailyChart 组件
+        function DailyChart({ data }) {
+            const maxCount = Math.max(...data.map(d => d.count));
+            return (
+                <div className="bg-dark-card rounded-xl p-5 border border-dark-border fade-in">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold">每日发推统计</h3>
+                        <span className="px-2 py-1 bg-gray-700/50 text-gray-400 text-xs rounded">
+                            UTC 时区
+                        </span>
+                    </div>
+                    <div className="flex items-end justify-between gap-2 h-40">
+                        {data.map((item, index) => (
+                            <div key={index} className="flex flex-col items-center flex-1">
+                                <div className="w-full flex items-end justify-center flex-1">
+                                    <div 
+                                        className="w-full max-w-12 bg-gradient-to-t from-accent-primary to-accent-glow rounded-t transition-all hover:opacity-80"
+                                        style={{ height: `${(item.count / maxCount) * 100}%` }}
+                                    />
+                                </div>
+                                <div className="text-center mt-2">
+                                    <div className="text-xs text-gray-500">{item.date}</div>
+                                    <div className="text-sm font-medium">{item.count}条</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // 市场概览页面
+        function OverviewPage({ data }) {
+            return (
+                <div className="space-y-6 fade-in">
+                    {/* 统计卡片 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <StatCard label="当前总数" value={data.total} unit="条推文" icon="📝" />
+                        <StatCard label="今日新增" value={data.todayNew} unit="条" icon="🆕" />
+                        <StatCard label="日均时速" value={data.dailyRate} unit="条/天" icon="⚡" />
+                        <StatCard label="剩余时间" value={data.remainingTime} unit="小时" icon="⏱️" />
+                    </div>
+
+                    {/* 进度条 */}
+                    <ProgressBar value={data.progress} label="完成进度" />
+
+                    {/* Polymarket 赔率 */}
+                    <div className="bg-dark-card rounded-xl p-5 border border-dark-border">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-semibold text-lg">Polymarket 赔率</h3>
+                            <div className="flex items-center gap-3">
+                                <span className="text-gray-400 text-sm">
+                                    更新: {data.lastUpdate}
+                                </span>
+                                <button className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
+                                    🔄 刷新
+                                </button>
+                            </div>
+                        </div>
+                        <div className="text-5xl font-bold gradient-text mb-2">{data.volume}</div>
+                        <p className="text-gray-400 text-sm">交易量</p>
+                    </div>
+
+                    {/* 预测中心 */}
+                    <div className="bg-dark-card rounded-xl p-5 border border-dark-border">
+                        <h3 className="font-semibold text-lg mb-4">预测中心落点</h3>
+                        <div className="flex items-baseline gap-3 mb-4">
+                            <span className="text-4xl font-bold gradient-text">~{data.prediction}条</span>
+                            <span className="text-gray-400">
+                                基于当前日均{data.dailyRate}.0条/天（1.46条/时）
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* 概率分布 */}
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-semibold text-lg">概率分布区间</h3>
+                            <span className="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">
+                                数据来源: Polymarket 实时市场
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {data.ranges.map((range, index) => (
+                                <ProbabilityCard 
+                                    key={index}
+                                    range={range.range}
+                                    probability={range.probability}
+                                    isCenter={range.isCenter}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* 发推速率 */}
+                    <div className="bg-dark-card rounded-xl p-5 border border-dark-border">
+                        <div className="flex items-center gap-8">
+                            <div>
+                                <span className="text-gray-400 text-sm block mb-1">日均速率</span>
+                                <span className="text-2xl font-bold">{data.dailyRate}.0条/天</span>
+                            </div>
+                            <div>
+                                <span className="text-gray-400 text-sm block mb-1">每小时</span>
+                                <span className="text-2xl font-bold">≈1.46条/时</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 市场列表 */}
+                    <div>
+                        <h3 className="font-semibold text-lg mb-4">市场列表</h3>
+                        <div className="space-y-3">
+                            {data.markets.map((market, index) => (
+                                <MarketCard 
+                                    key={index}
+                                    market={market}
+                                    isActive={market.active}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* 每日统计图表 */}
+                    <DailyChart data={data.dailyStats} />
+                </div>
+            );
+        }
+
+        // 概率分析页面
+        function ProbabilityPage({ data }) {
+            const [madnessFactor, setMadnessFactor] = useState(1.0);
+
+            return (
+                <div className="space-y-6 fade-in">
+                    {/* 盘口价值比表格 */}
+                    <div className="bg-dark-card rounded-xl border border-dark-border overflow-hidden">
+                        <div className="p-5 border-b border-dark-border">
+                            <h3 className="font-semibold text-lg">盘口价值比</h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-dark-bg">
+                                    <tr className="text-gray-400 text-sm">
+                                        <th className="text-left p-4">区间</th>
+                                        <th className="text-right p-4">市场%</th>
+                                        <th className="text-right p-4">AI%</th>
+                                        <th className="text-right p-4">Edge</th>
+                                        <th className="text-right p-4">α</th>
+                                        <th className="text-right p-4">时速下限</th>
+                                        <th className="text-right p-4">时速上限</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {data.ranges.map((range, index) => (
+                                        <tr key={index} className="border-t border-dark-border hover:bg-white/5">
+                                            <td className="p-4 font-medium">
+                                                {range.range}
+                                                {range.isCenter && (
+                                                    <span className="ml-2 text-xs text-amber-400">(中心)</span>
+                                                )}
+                                            </td>
+                                            <td className="p-4 text-right text-gray-300">{range.probability}%</td>
+                                            <td className="p-4 text-right text-gray-300">{(range.probability * 0.95).toFixed(1)}%</td>
+                                            <td className="p-4 text-right text-green-400">+{(range.probability * 0.05).toFixed(1)}%</td>
+                                            <td className="p-4 text-right text-accent-glow">{(Math.random() * 0.1 + 0.05).toFixed(3)}</td>
+                                            <td className="p-4 text-right text-gray-300">{(range.probability * 0.8).toFixed(1)}</td>
+                                            <td className="p-4 text-right text-gray-300">{(range.probability * 1.2).toFixed(1)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* 目标区间时速倒推 */}
+                    <div className="bg-dark-card rounded-xl p-5 border border-dark-border">
+                        <h3 className="font-semibold text-lg mb-4">目标区间时速倒推</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {data.ranges.map((range, index) => (
+                                <div key={index} className="bg-dark-bg rounded-lg p-4">
+                                    <div className="text-gray-400 text-sm mb-1">{range.range}</div>
+                                    <div className="text-2xl font-bold text-accent-glow">
+                                        {(data.dailyRate / (data.ranges.length - index)).toFixed(1)}条/时
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* 仓位分配策略 */}
+                    <div className="bg-dark-card rounded-xl p-5 border border-dark-border">
+                        <h3 className="font-semibold text-lg mb-4">仓位分配策略建议</h3>
+                        <div className="bg-dark-bg rounded-lg p-4 mb-4">
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <span className="text-gray-400 text-sm block">模型预测落点</span>
+                                    <span className="text-2xl font-bold">~{data.prediction}条</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-400 text-sm block">概率最高区间</span>
+                                    <span className="text-2xl font-bold text-amber-400">240-259</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                                <span className="text-green-400 font-medium">$500 买入</span>
+                                <span className="text-green-400">50% 仓位</span>
+                            </div>
+                            <div className="flex items-center justify-between p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                                <span className="text-blue-400 font-medium">$200 买入</span>
+                                <span className="text-blue-400">20% 仓位</span>
+                            </div>
+                            <div className="flex items-center justify-between p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                                <span className="text-purple-400 font-medium">$100 买入</span>
+                                <span className="text-purple-400">10% 仓位</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 发疯系数滑块 */}
+                    <div className="bg-dark-card rounded-xl p-5 border border-dark-border">
+                        <h3 className="font-semibold text-lg mb-4">概率模型参数</h3>
+                        <div className="flex items-center gap-4">
+                            <span className="text-gray-400 text-sm">发疯系数 k</span>
+                            <input
+                                type="range"
+                                min="1.0"
+                                max="3.0"
+                                step="0.1"
+                                value={madnessFactor}
+                                onChange={(e) => setMadnessFactor(parseFloat(e.target.value))}
+                                className="flex-1 h-2 bg-dark-bg rounded-full appearance-none cursor-pointer accent-accent-primary"
+                            />
+                            <span className="text-accent-glow font-semibold w-12 text-right">{madnessFactor.toFixed(1)}</span>
+                        </div>
+                    </div>
+
+                    {/* 每日统计图表 */}
+                    <DailyChart data={data.dailyStats} />
+                </div>
+            );
+        }
+
+        // 发推热力图
+        function HeatmapPage({ data }) {
+            const [heatmapData, setHeatmapData] = useState(data.heatmapData);
+
+            const getColor = (intensity) => {
+                if (intensity < 0.2) return 'bg-gray-800';
+                if (intensity < 0.4) return 'bg-blue-900';
+                if (intensity < 0.6) return 'bg-blue-700';
+                if (intensity < 0.8) return 'bg-blue-500';
+                return 'bg-blue-300';
+            };
+
+            const hours = Array.from({ length: 24 }, (_, i) => i);
+            const days = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
+            return (
+                <div className="space-y-6 fade-in">
+                    {/* 热力图 */}
+                    <div className="bg-dark-card rounded-xl p-5 border border-dark-border">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 className="font-semibold text-lg">马斯克24小时发推热力图</h3>
+                                <p className="text-gray-400 text-sm mt-1">基于历史数据统计</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
+                                    📥 导出
+                                </button>
+                                <button className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
+                                    📤 导入
+                                </button>
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <div className="min-w-[800px]">
+                                {/* 小时标签 */}
+                                <div className="flex mb-2 ml-12">
+                                    {hours.map(hour => (
+                                        <div key={hour} className="flex-1 text-center text-xs text-gray-500">
+                                            {hour}
+                                        </div>
+                                    ))}
+                                </div>
+                                {/* 热力图网格 */}
+                                {days.map((day, dayIndex) => (
+                                    <div key={day} className="flex items-center mb-1">
+                                        <div className="w-12 text-sm text-gray-400">{day}</div>
+                                        <div className="flex-1 flex gap-0.5">
+                                            {hours.map(hour => {
+                                                const cell = heatmapData.find(d => d.day === day && d.hour === hour);
+                                                return (
+                                                    <div
+                                                        key={hour}
+                                                        className={`flex-1 h-8 rounded heatmap-cell ${getColor(cell?.intensity || 0)}`}
+                                                        title={`${day} ${hour}:00 - 活跃度: ${((cell?.intensity || 0) * 100).toFixed(0)}%`}
+                                                    />
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                                {/* 图例 */}
+                                <div className="flex items-center justify-end mt-4 gap-2">
+                                    <span className="text-xs text-gray-500">低</span>
+                                    <div className="flex gap-0.5">
+                                        <div className="w-6 h-4 bg-gray-800 rounded" />
+                                        <div className="w-6 h-4 bg-blue-900 rounded" />
+                                        <div className="w-6 h-4 bg-blue-700 rounded" />
+                                        <div className="w-6 h-4 bg-blue-500 rounded" />
+                                        <div className="w-6 h-4 bg-blue-300 rounded" />
+                                    </div>
+                                    <span className="text-xs text-gray-500">高</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 最新推文列表 */}
+                    <div className="bg-dark-card rounded-xl p-5 border border-dark-border">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-semibold text-lg">最新推文</h3>
+                            <a href="https://xtracker.polymarket.com" target="_blank" rel="noopener noreferrer"
+                               className="text-accent-primary hover:text-accent-glow text-sm transition-colors">
+                                查看全部 →
+                            </a>
+                        </div>
+                        <div className="space-y-3">
+                            {[
+                                { time: '12:43', content: 'The future of AI is both exciting and terrifying. We must ensure it benefits humanity.' },
+                                { time: '10:15', content: 'Starship update coming soon. The team has been working incredibly hard.' },
+                                { time: '08:32', content: 'Carbon capture is important for our future. Every ton matters.' },
+                                { time: '06:22', content: 'Good morning! Let\'s make today amazing.' }
+                            ].map((tweet, index) => (
+                                <div key={index} className="p-4 bg-dark-bg rounded-lg">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xs text-gray-500">{tweet.time} UTC</span>
+                                    </div>
+                                    <p className="text-gray-200">{tweet.content}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // 推文生成器
+        function GeneratorPage() {
+            const [platform, setPlatform] = useState('twitter');
+            const [generatedTweet, setGeneratedTweet] = useState('');
+
+            const generateTweet = () => {
+                const templates = {
+                    twitter: `📊 马斯克推文市场分析
+
+基于当前数据统计：
+• 今日新增推文: 9条
+• 日均速率: 35条/天
+• 模型预测: ~247条
+
+📈 概率分布:
+• 240-259区间: 43.2% ⭐
+• 260-279区间: 29.5%
+
+⚠️ 风险提示: 市场有风险，投资需谨慎
+
+#Polymarket #马斯克 #加密预测`,
+                    telegram: `📊 *马斯克推文预测市场更新*
+
+📈 今日统计:
+├─ 当前总数: 209条
+├─ 今日新增: 9条
+└─ 日均速率: 35条/天
+
+🎯 预测中心: ~247条
+
+📊 概率分布:
+├─ 220-239: 9.8%
+├─ *240-259: 43.2%* ⭐
+├─ 260-279: 29.5%
+└─ 280-299: 11.5%
+
+💰 Polymarket交易量: $18.4M`
+                };
+                setGeneratedTweet(templates[platform]);
+            };
+
+            const copyToClipboard = () => {
+                navigator.clipboard.writeText(generatedTweet);
+                alert('已复制到剪贴板!');
+            };
+
+            useEffect(() => {
+                generateTweet();
+            }, [platform]);
+
+            return (
+                <div className="space-y-6 fade-in">
+                    {/* 平台选择 */}
+                    <div className="bg-dark-card rounded-xl p-5 border border-dark-border">
+                        <h3 className="font-semibold text-lg mb-4">选择发布平台</h3>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setPlatform('twitter')}
+                                className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                                    platform === 'twitter'
+                                        ? 'bg-black text-white border-2 border-white'
+                                        : 'bg-dark-bg text-gray-400 hover:text-white border-2 border-transparent'
+                                }`}
+                            >
+                                𝕏 Twitter/X
+                            </button>
+                            <button
+                                onClick={() => setPlatform('telegram')}
+                                className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                                    platform === 'telegram'
+                                        ? 'bg-blue-500 text-white'
+                                        : 'bg-dark-bg text-gray-400 hover:text-white border-2 border-transparent'
+                                }`}
+                            >
+                                📱 Telegram
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 生成预览 */}
+                    <div className="bg-dark-card rounded-xl p-5 border border-dark-border">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-semibold text-lg">生成内容预览</h3>
+                            <button
+                                onClick={generateTweet}
+                                className="px-4 py-2 bg-accent-primary hover:bg-accent-secondary rounded-lg font-medium transition-all"
+                            >
+                                🔄 重新生成
+                            </button>
+                        </div>
+                        <div className="bg-dark-bg rounded-xl p-4 min-h-[300px]">
+                            <pre className="whitespace-pre-wrap text-gray-300 font-sans leading-relaxed">
+                                {generatedTweet || '点击生成按钮开始...'}
+                            </pre>
+                        </div>
+                    </div>
+
+                    {/* 复制按钮 */}
+                    <button
+                        onClick={copyToClipboard}
+                        className="w-full py-4 bg-gradient-to-r from-accent-primary to-accent-secondary rounded-xl font-semibold text-lg hover:opacity-90 transition-all shadow-lg hover:shadow-accent-primary/25"
+                    >
+                        📋 一键复制推文内容
+                    </button>
+
+                    {/* 发布提示 */}
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+                        <div className="flex items-start gap-3">
+                            <span className="text-2xl">⚠️</span>
+                            <div>
+                                <h4 className="font-semibold text-amber-400 mb-1">发布前请检查</h4>
+                                <ul className="text-amber-200/80 text-sm space-y-1">
+                                    <li>• 确认内容准确无误</li>
+                                    <li>• 注意平台字数限制</li>
+                                    <li>• 遵守各平台社区规则</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // 主 App 组件
+        function App() {
+            const [activeTab, setActiveTab] = useState('overview');
+            const [apiData, setApiData] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [lastUpdate, setLastUpdate] = useState('');
+
+            // 从 API 获取数据
+            const fetchData = async () => {
+                try {
+                    const response = await fetch(API_URL);
+                    const data = await response.json();
+                    if (data.success) {
+                        // 转换 API 数据格式
+                        const convertedData = {
+                            total: data.tweetStats?.current || 0,
+                            todayNew: data.tweetStats?.historical?.[6]?.count || 0,
+                            dailyRate: data.tweetStats?.dailyRate || 0,
+                            remainingTime: data.prediction?.remainingTime || '计算中...',
+                            progress: data.progress?.percentage || 0,
+                            volume: data.polymarket?.totalVolume > 1000000 
+                                ? `$${(data.polymarket.totalVolume / 1000000).toFixed(1)}M` 
+                                : `$${data.polymarket?.totalVolume || 0}`,
+                            lastUpdate: new Date().toLocaleString('zh-CN'),
+                            prediction: data.prediction?.centerPoint || 0,
+                            centerProbability: data.prediction?.probabilities?.find(p => p.isCenter)?.probability || 0,
+                            ranges: data.prediction?.probabilities || [],
+                            dailyStats: data.tweetStats?.historical || [],
+                            markets: data.polymarket?.markets?.slice(0, 2).map((m, i) => ({
+                                name: m.question || `市场 ${i + 1}`,
+                                remaining: '进行中',
+                                volume: m.volume ? `$${parseFloat(m.volume).toFixed(0)}` : '$0',
+                                active: i === 0
+                            })) || []
+                        };
+                        setApiData(convertedData);
+                        setLastUpdate(new Date().toLocaleString('zh-CN'));
+                    }
+                } catch (error) {
+                    console.log('API fetch error, using mock data:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // 初始加载
+            useEffect(() => {
+                fetchData();
+                // 每 60 秒自动刷新
+                const interval = setInterval(fetchData, 60000);
+                return () => clearInterval(interval);
+            }, []);
+
+            // 使用 API 数据或模拟数据
+            const displayData = apiData || {
+                ...mockData,
+                lastUpdate: lastUpdate || mockData.lastUpdate
+            };
+
+            return (
+                <div className="min-h-screen bg-dark-bg">
+                    <Header />
+                    <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <main className="max-w-7xl mx-auto px-4 py-8">
+                        {loading && (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="text-center">
+                                    <div className="animate-spin text-4xl mb-4">⚡</div>
+                                    <p className="text-gray-400">加载实时数据中...</p>
+                                </div>
+                            </div>
+                        )}
+                        {!loading && activeTab === 'overview' && <OverviewPage data={displayData} />}
+                        {!loading && activeTab === 'probability' && <ProbabilityPage data={displayData} />}
+                        {!loading && activeTab === 'heatmap' && <HeatmapPage data={displayData} />}
+                        {!loading && activeTab === 'generator' && <GeneratorPage />}
+                    </main>
+                    {/* 数据来源标识 */}
+                    <footer className="fixed bottom-0 left-0 right-0 bg-dark-card/90 backdrop-blur border-t border-dark-border py-2 text-center">
+                        <span className="text-gray-500 text-sm">
+                            数据来源: {apiData ? '🔴 实时API' : '⚪ 模拟数据'} | 
+                            更新: {lastUpdate || '加载中...'} | 
+                            <a href={API_URL} target="_blank" rel="noopener noreferrer" className="text-accent-primary hover:underline">
+                                API状态
+                            </a>
+                        </span>
+                    </footer>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

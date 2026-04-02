@@ -67,30 +67,74 @@ async function getUserTweetStats(bearerToken, userId, startTime, endTime) {
 
 /**
  * 获取 Polymarket 市场数据
+ * 从指定的市场 slug 获取数据
  */
 async function getPolymarketData() {
+    // 目标市场 slug
+    const TARGET_SLUG = 'elon-musk-of-tweets-march-27-april-3-260-279';
+    const TARGET_EVENT_SLUG = 'elon-musk-of-tweets-march-27-april-3';
+    
     try {
-        // 获取活跃市场列表
+        // 方法: 直接从 Polymarket API 获取市场信息
+        // 使用 CLOB API 的 markets 端点
         const response = await axios.get(
             'https://clob.polymarket.com/markets',
             {
                 params: {
                     'closed': 'false',
-                    'limit': 10
+                    'limit': 200
                 }
             }
         );
 
-        // 过滤出马斯克推文相关的市场
-        const muskMarkets = (response.data.markets || []).filter(m => 
-            m.question && (m.question.toLowerCase().includes('tweet') ||
-            m.question.toLowerCase().includes('musk') ||
-            m.question.toLowerCase().includes('# tweets'))
+        const markets = response.data.markets || [];
+        
+        // 查找目标市场 - 通过 slug 或 question 匹配
+        let targetMarket = markets.find(m => 
+            m.slug === TARGET_SLUG || 
+            m.slug === TARGET_EVENT_SLUG
+        );
+        
+        // 如果没找到，尝试通过 question 模糊匹配
+        if (!targetMarket) {
+            targetMarket = markets.find(m => 
+                (m.question && 
+                    (m.question.toLowerCase().includes('tweet') || m.question.toLowerCase().includes('# tweets')) &&
+                    m.question.toLowerCase().includes('musk') &&
+                    (m.question.includes('260') || m.question.includes('279'))
+                ) ||
+                (m.slug && m.slug.includes('elon') && m.slug.includes('tweet'))
+            );
+        }
+
+        if (targetMarket) {
+            return [{
+                id: targetMarket.id,
+                question: targetMarket.question,
+                slug: targetMarket.slug,
+                endDate: targetMarket.endDate,
+                volume: targetMarket.volume || '0',
+                liquidity: targetMarket.liquidity || '0',
+                tokens: targetMarket.tokens || [],
+                // 从 tokens 中提取概率信息
+                probabilities: (targetMarket.tokens || []).map(t => ({
+                    outcome: t.outcome,
+                    price: t.price,
+                    probability: t.price ? (parseFloat(t.price) * 100).toFixed(1) + '%' : 'N/A'
+                }))
+            }];
+        }
+
+        // 备用方法: 返回所有 Musk 相关市场
+        const muskMarkets = markets.filter(m => 
+            (m.slug && m.slug.toLowerCase().includes('tweet') && m.slug.toLowerCase().includes('musk')) ||
+            (m.question && m.question.toLowerCase().includes('tweet') && m.question.toLowerCase().includes('musk'))
         );
 
-        return muskMarkets.map(m => ({
+        return muskMarkets.slice(0, 5).map(m => ({
             id: m.id,
             question: m.question,
+            slug: m.slug,
             endDate: m.endDate,
             volume: m.volume || '0',
             liquidity: m.liquidity || '0'
