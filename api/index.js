@@ -274,13 +274,15 @@ module.exports = async function handler(req, res) {
         let probabilities = prediction.probabilities;
         if (polymarketData && polymarketData.length > 0) {
             // 使用 Polymarket 真实概率数据
-            probabilities = polymarketData.map((m, index) => {
-                const rangeStr = m.slug?.split('-').pop() || `区间${index + 1}`;
+            probabilities = polymarketData.map((m) => {
+                // 从 slug 中提取区间，如 "elon-musk-of-tweets-march-27-april-3-220-239" -> "220-239"
+                const slugParts = (m.slug || '').split('-');
+                const range = slugParts.slice(-2).join('-');
                 return {
-                    range: rangeStr,
+                    range: range,
                     probability: parseFloat(m.normalizedProbability || m.probability || 0),
                     rawProbability: parseFloat(m.probability || 0),
-                    isCenter: rangeStr === '240-259'
+                    isCenter: range === '240-259'
                 };
             });
         }
