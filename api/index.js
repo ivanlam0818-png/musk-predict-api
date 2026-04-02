@@ -136,17 +136,24 @@ async function getHistoricalTweetData(bearerToken) {
 /**
  * 计算预测数据
  */
-function calculatePrediction(historicalData, daysRemaining = 2) {
+function calculatePrediction(historicalData, daysRemaining = 2, totalDays = 7) {
+    // 计算日均和时均发推速率
     const totalTweets = historicalData.reduce((sum, d) => sum + d.count, 0);
     const daysCounted = historicalData.length;
     const dailyRate = totalTweets / daysCounted;
     const hourlyRate = dailyRate / 24;
 
-    const currentTotal = historicalData[historicalData.length - 1]?.count || 0;
+    // 当前已发推文总数（7天周期内）
+    const currentTotal = totalTweets;
+    
+    // 预测剩余时间内的推文数
     const remainingHours = daysRemaining * 24;
-    const predictedTotal = Math.round(currentTotal + (hourlyRate * remainingHours));
+    const predictedRemaining = hourlyRate * remainingHours;
+    
+    // 预测总推文数 = 当前 + 剩余
+    const predictedTotal = Math.round(currentTotal + predictedRemaining);
 
-    // 计算概率分布
+    // 计算概率分布 (正态分布模型)
     const ranges = [
         { range: '220-239', min: 220, max: 239 },
         { range: '240-259', min: 240, max: 259, isCenter: true },
@@ -154,30 +161,28 @@ function calculatePrediction(historicalData, daysRemaining = 2) {
         { range: '280-299', min: 280, max: 299 }
     ];
 
+    // 使用正态分布计算概率
+    const stdDev = 20; // 标准差
     const probabilities = ranges.map(r => {
         const mid = (r.min + r.max) / 2;
-        const distance = Math.abs(mid - predictedTotal);
-        const spread = (r.max - r.min) / 2;
-        let prob;
-        
-        if (distance <= spread) {
-            prob = 50 + 50 * (1 - distance / spread);
-        } else {
-            prob = 50 * Math.exp(-((distance - spread) ** 2) / (2 * (spread ** 2)));
-        }
+        // 正态分布概率密度
+        const exponent = -Math.pow(predictedTotal - mid, 2) / (2 * Math.pow(stdDev, 2));
+        const prob = Math.exp(exponent);
         
         return {
             range: r.range,
-            probability: Math.round(prob * 10) / 10,
+            probability: Math.round(prob * 1000) / 10,
             isCenter: r.isCenter || false
         };
     });
 
-    // 归一化
+    // 归一化概率
     const totalProb = probabilities.reduce((sum, p) => sum + p.probability, 0);
-    probabilities.forEach(p => {
-        p.probability = Math.round((p.probability / totalProb) * 1000) / 10;
-    });
+    if (totalProb > 0) {
+        probabilities.forEach(p => {
+            p.probability = Math.round((p.probability / totalProb) * 1000) / 10;
+        });
+    }
 
     return {
         currentTotal,
