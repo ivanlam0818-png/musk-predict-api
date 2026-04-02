@@ -1,0 +1,13 @@
+{
+  "name": "musk-predict-api",
+  "version": "1.0.0",
+  "description": "API service for Musk Tweet Prediction Markets",
+  "main": "api/index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "vercel dev"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}
